@@ -5,6 +5,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
 import javax.persistence.Cache;
+import javax.persistence.CacheStoreMode;
 import javax.persistence.EntityManager;
 import javax.persistence.EntityManagerFactory;
 import javax.persistence.EntityTransaction;
@@ -35,6 +36,11 @@ public class JpaCachingTest {
 		emf.close();
 	}
 
+	/**
+	 * Selective caching is enabled by
+	 * <shared-cache-element>ENABLE_SELECTIVE</shared-cache-element> and the
+	 * book entity is marked @Cachable(true)
+	 */
 	@Test
 	public void shouldCacheACachableEntity() throws Exception {
 		tx.begin();
@@ -58,6 +64,11 @@ public class JpaCachingTest {
 		assertThat(cache.contains(Book.class, 2L), is(false));
 	}
 
+	/**
+	 * Selective caching is enabled by
+	 * <shared-cache-element>ENABLE_SELECTIVE</shared-cache-element> and the
+	 * person entity is marked @Cachable(false)
+	 */
 	@Test
 	public void shouldNotCacheAnUncachableEntity() throws Exception {
 		tx.begin();
@@ -73,5 +84,24 @@ public class JpaCachingTest {
 
 		Person personFound = em.find(Person.class, 1L);
 		assertThat(personFound, notNullValue());
+	}
+
+	@Test
+	public void shouldCacheQuery() throws Exception {
+		tx.begin();
+		Book book1 = new Book(3L, "Book 1");
+		Book book2 = new Book(4L, "Book 2");
+		em.persist(book1);
+		em.persist(book2);
+		tx.commit();
+
+		Cache cache = emf.getCache();
+		cache.evictAll();
+		Book book3 = em
+				.createQuery("SELECT p FROM Book p WHERE p.title='Book 1'",
+						Book.class)
+				.setHint("javax.persistence.cache.storeMode",
+						CacheStoreMode.BYPASS).getSingleResult();
+		assertThat(cache.contains(Book.class, book3.getId()), is(false));
 	}
 }
