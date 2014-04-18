@@ -4,11 +4,7 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
-import java.util.HashMap;
-import java.util.Map;
-
 import javax.persistence.Cache;
-import javax.persistence.CacheStoreMode;
 import javax.persistence.EntityManager;
 import javax.persistence.EntityManagerFactory;
 import javax.persistence.EntityTransaction;
@@ -19,6 +15,7 @@ import org.junit.Before;
 import org.junit.Test;
 
 import com.hascode.tutorial.jpa_caching.entity.Book;
+import com.hascode.tutorial.jpa_caching.entity.Person;
 
 public class JpaCachingTest {
 	EntityManagerFactory emf;
@@ -27,39 +24,54 @@ public class JpaCachingTest {
 
 	@Before
 	public void setup() {
-		Map<String, Object> properties = new HashMap<>();
-		properties
-				.put("javax.persistence.sharedCache.mode", CacheStoreMode.USE);
-		emf = Persistence.createEntityManagerFactory("default", properties);
+		emf = Persistence.createEntityManagerFactory("default");
 		em = emf.createEntityManager();
 		tx = em.getTransaction();
-		tx.begin();
 	}
 
 	@After
 	public void teardown() {
-		tx.rollback();
 		em.close();
 		emf.close();
 	}
 
 	@Test
 	public void shouldCacheACachableEntity() throws Exception {
-		em.setProperty("javax.persistence.cache.storeMode", CacheStoreMode.USE);
-		Book book = new Book(1L, "Some book");
-		em.persist(book);
-		em.flush();
+		tx.begin();
+		Book book1 = new Book(1L, "Some book");
+		Book book2 = new Book(2L, "Another book");
+		em.persist(book1);
+		em.persist(book2);
+		tx.commit();
 
 		Cache cache = emf.getCache();
+		assertThat(cache.contains(Book.class, 1L), is(true));
+		assertThat(cache.contains(Book.class, 2L), is(true));
+
+		Book cachedBook = em.find(Book.class, 1L);
+		assertThat(cachedBook, notNullValue());
+
+		cache.evict(Book.class, 1L); // clear one designated book from cache
 		assertThat(cache.contains(Book.class, 1L), is(false));
 
-		Book bookStored = em
-				.createQuery("SELECT b FROM Book b WHERE b.id=1", Book.class)
-				.setHint("javax.persistence.cache.storeMode",
-						CacheStoreMode.USE).getSingleResult();
-		assertThat(bookStored, notNullValue());
+		cache.evict(Book.class); // clear all books from cache
+		assertThat(cache.contains(Book.class, 2L), is(false));
+	}
 
-		assertThat(cache.contains(Book.class, 1L), is(true));
+	@Test
+	public void shouldNotCacheAnUncachableEntity() throws Exception {
+		tx.begin();
+		Person person1 = new Person(1L, "Lisa");
+		Person person2 = new Person(2L, "Tim");
+		em.persist(person1);
+		em.persist(person2);
+		tx.commit();
 
+		Cache cache = emf.getCache();
+		assertThat(cache.contains(Person.class, 1L), is(false));
+		assertThat(cache.contains(Person.class, 2L), is(false));
+
+		Person personFound = em.find(Person.class, 1L);
+		assertThat(personFound, notNullValue());
 	}
 }
