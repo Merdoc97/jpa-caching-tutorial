@@ -1,6 +1,6 @@
-# JPA 2.1 Caching Tutorial
+# JPA Caching Tutorial
 
-Examples showing the caching features in the Java Persistence API 2.1 specification.
+Examples showing how to control the second level cache from the Java Persistence API specification in an application.
 
 Please feel free to have a look at [my blog] for the full tutorial.
 

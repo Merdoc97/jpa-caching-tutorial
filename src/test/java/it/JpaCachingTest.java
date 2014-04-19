@@ -4,8 +4,10 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
+import java.util.HashMap;
+import java.util.Map;
+
 import javax.persistence.Cache;
-import javax.persistence.CacheStoreMode;
 import javax.persistence.EntityManager;
 import javax.persistence.EntityManagerFactory;
 import javax.persistence.EntityTransaction;
@@ -96,12 +98,22 @@ public class JpaCachingTest {
 		tx.commit();
 
 		Cache cache = emf.getCache();
-		cache.evictAll();
-		Book book3 = em
-				.createQuery("SELECT p FROM Book p WHERE p.title='Book 1'",
-						Book.class)
-				.setHint("javax.persistence.cache.storeMode",
-						CacheStoreMode.BYPASS).getSingleResult();
-		assertThat(cache.contains(Book.class, book3.getId()), is(false));
+		cache.evictAll(); // clear the whole cache
+		assertThat(cache.contains(Book.class, 3L), is(false)); // nothing in the
+																// cache
+		Map<String, Object> props = new HashMap<String, Object>();
+		props.put("javax.persistence.cache.storeMode", "REFRESH");
+		em.find(Book.class, 3L, props);
+		assertThat(cache.contains(Book.class, 3L), is(true)); // now a cache
+																// entry
+
+		cache.evictAll(); // clear cache
+		assertThat(cache.contains(Book.class, 3L), is(false));
+		props.put("javax.persistence.cache.storeMode", "BYPASS"); // no cache
+																	// entry
+																	// written
+		em.find(Book.class, 3L, props);
+		assertThat(cache.contains(Book.class, 3L), is(false)); // no cache entry
+																// as expected
 	}
 }
